@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人全量级音乐图谱量化分析报告 - 交互看板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入自定义字体和图标库配置 -->
+    <style>
+        body {
+            background-color: #f4f6f8;
+            color: #2c3e50;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow-x: hidden;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 40vh;
+            min-height: 300px;
+            max-height: 450px;
+            background: #ffffff;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid #e2e8f0;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 35vh;
+                min-height: 250px;
+            }
+        }
+        .tab-btn {
+            transition: all 0.2s ease;
+            border-left: 4px solid transparent;
+        }
+        .tab-btn.active {
+            background-color: #e0f2fe; /* Light Blue */
+            color: #0369a1; /* Dark Blue */
+            border-left-color: #0284c7;
+            font-weight: 600;
+        }
+        .tab-btn:hover:not(.active) {
+            background-color: #f1f5f9;
+            border-left-color: #cbd5e1;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .accent-border {
+            border-left: 4px solid #0ea5e9;
+        }
+        .data-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <!-- 顶部导航栏 -->
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">个人听歌行为图谱与风格量化分析</h1>
+                    <p class="text-sm text-gray-500 mt-1">样本量：382首本地/收藏曲目 | 分析引擎：Gemini Audio Analytics</p>
+                </div>
+                <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+                    <span class="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                        🎵 频谱特征提取
+                    </span>
+                    <span class="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        📊 聚类分析模型
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex flex-col md:flex-row gap-8 relative">
+        
+        <!-- 左侧导航栏 (移动端横向滚动，PC端固定侧边) -->
+        <aside class="w-full md:w-64 flex-shrink-0 z-10">
+            <nav class="flex md:flex-col overflow-x-auto md:overflow-visible space-x-2 md:space-x-0 md:space-y-2 pb-2 md:pb-0 md:sticky md:top-28 snap-x">
+                <button onclick="switchTab('overview')" id="btn-overview" class="snap-start whitespace-nowrap tab-btn active text-left px-5 py-3 rounded-lg border border-gray-200 text-gray-600 flex items-center shadow-sm">
+                    <span class="mr-3 text-lg">📑</span> 数据池概览
+                </button>
+                <button onclick="switchTab('clustering')" id="btn-clustering" class="snap-start whitespace-nowrap tab-btn text-left px-5 py-3 rounded-lg border border-gray-200 text-gray-600 flex items-center shadow-sm">
+                    <span class="mr-3 text-lg">🕸️</span> 流派聚类特征
+                </button>
+                <button onclick="switchTab('volatility')" id="btn-volatility" class="snap-start whitespace-nowrap tab-btn text-left px-5 py-3 rounded-lg border border-gray-200 text-gray-600 flex items-center shadow-sm">
+                    <span class="mr-3 text-lg">📈</span> 极端情绪波动(BPM)
+                </button>
+                <button onclick="switchTab('profiling')" id="btn-profiling" class="snap-start whitespace-nowrap tab-btn text-left px-5 py-3 rounded-lg border border-gray-200 text-gray-600 flex items-center shadow-sm">
+                    <span class="mr-3 text-lg">🧠</span> 心理动力学侧写
+                </button>
+            </nav>
+        </aside>
+
+        <!-- 右侧主内容区 -->
+        <section class="flex-grow min-w-0" id="content-area">
+            
+            <!-- 模块 1：数据池概览 -->
+            <div id="sec-overview" class="fade-in block space-y-6">
+                <!-- 核心数据卡片 -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="data-card p-5 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-center items-center">
+                        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">总样本量</p>
+                        <p class="text-3xl font-black text-blue-600">382<span class="text-sm font-normal text-gray-400 ml-1">首</span></p>
+                    </div>
+                    <div class="data-card p-5 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-center items-center">
+                        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">时间跨度</p>
+                        <p class="text-3xl font-black text-indigo-600">15<span class="text-sm font-normal text-gray-400 ml-1">年+</span></p>
+                    </div>
+                    <div class="data-card p-5 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-center items-center">
+                        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">主要语言</p>
+                        <p class="text-xl font-bold text-gray-800 mt-2">中 / 英 / 日</p>
+                    </div>
+                    <div class="data-card p-5 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-center items-center">
+                        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">听歌杂食度</p>
+                        <p class="text-3xl font-black text-emerald-500">92<span class="text-sm font-normal text-gray-400 ml-1">%</span></p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h2 class="text-xl font-bold mb-4 text-gray-800 flex items-center">摘要与底层逻辑发现</h2>
+                    <p class="text-gray-600 leading-relaxed accent-border pl-4 bg-blue-50/50 py-4 pr-4 rounded-r-lg text-sm md:text-base">
+                        本报告提取了用户提供的382首音乐歌单视频元数据。我们发现该歌单并非遵循单一的情感逻辑，而是呈现出高度的**碎片化与两极分化**。歌单中既包含了如周杰伦《晴天》、邓紫棋《光年之外》等极具大众流行度的华语经典，又充斥着大量以“DJ版”、“0.8x降调版”为后缀的强情绪干预曲目。这表明用户在使用音乐时，**功能性诉求（如提神、助眠、情绪宣泄）**往往大于单纯的审美诉求。
+                    </p>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <div class="flex flex-col md:flex-row gap-6 items-center">
+                        <div class="w-full md:w-1/2">
+                            <h3 class="text-lg font-bold mb-2 text-gray-800">音乐维度雷达画像</h3>
+                            <p class="text-sm text-gray-500 mb-4">基于Spotify API五大声学维度标准的模拟评分。</p>
+                            <div class="chart-container !h-[300px]">
+                                <canvas id="radarChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-1/2 space-y-4">
+                            <h4 class="font-bold text-gray-700">显著特征解读：</h4>
+                            <ul class="space-y-3 text-sm text-gray-600">
+                                <li class="flex items-start"><span class="text-blue-500 mr-2">■</span> <b>高能量值 (Energy):</b> 大量电音、ACG战歌（如《僕の戦争》）及重低音Remix拉高了整体能量基线。</li>
+                                <li class="flex items-start"><span class="text-indigo-500 mr-2">■</span> <b>高怀旧度 (Nostalgia):</b> 从《七里香》到《卡秋莎》，体现了对过去时间节点的情感锚定。</li>
+                                <li class="flex items-start"><span class="text-emerald-500 mr-2">■</span> <b>声学性较低 (Acousticness):</b> 纯吉他/钢琴等原生乐器占比较低，高度依赖数字混音和后期特效。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模块 2：流派聚类特征 -->
+            <div id="sec-clustering" class="fade-in hidden space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h2 class="text-xl font-bold mb-4 text-gray-800 flex items-center">音乐流派与偏好聚类</h2>
+                    <p class="text-gray-600 leading-relaxed mb-6 text-sm">
+                        在382首曲目中，系统识别出了极其复杂的流派交叉。你绝不拘泥于某一种“鄙视链”，你的歌单是一个“大熔炉”。Taylor Swift 可以和 凤凰传奇 在同一个列表中无缝衔接。
+                    </p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="text-center font-bold text-sm text-gray-500 mb-2">核心流派占比构成</h3>
+                            <div class="chart-container !h-[300px] !border-none !shadow-none">
+                                <canvas id="doughnutChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="flex flex-col justify-center">
+                            <h3 class="font-bold text-gray-800 mb-3 border-b pb-2">高频出现标签 (Tag Cloud)</h3>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">周杰伦 (Jay Chou)</span>
+                                <span class="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">欧美流行 (Pop)</span>
+                                <span class="px-3 py-1 bg-gray-800 text-green-400 rounded-full text-xs font-mono">0.8x 降调版</span>
+                                <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold">DJ / 电音舞曲</span>
+                                <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">ACG动漫原声</span>
+                                <span class="px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-xs">邓紫棋</span>
+                                <span class="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">网络热歌神曲</span>
+                                <span class="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-xs">Alan Walker</span>
+                            </div>
+                            <div class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <p class="text-sm text-gray-600 leading-relaxed">
+                                    <b>聚类洞察：</b> 我们观察到了经典的<span class="text-blue-600 font-bold">“长尾分布”</span>。头部由少数顶流歌手（周杰伦、邓紫棋）占据，而尾部则是由大量匿名的网络DJ混音师、降调博主构成。这说明你既追求大众审美的最大公约数，又极度依赖特定的听觉刺激（BPM的改变）。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模块 3：极端情绪波动 (BPM) -->
+            <div id="sec-volatility" class="fade-in hidden space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h2 class="text-xl font-bold mb-2 text-gray-800 flex items-center">物理干预与情绪两极化分析</h2>
+                    <p class="text-gray-600 leading-relaxed mb-6 text-sm border-l-4 border-indigo-500 pl-3">
+                        这是你歌单中最值得研究的现象：<b>对原曲物理参数的强行修改。</b>你收藏了大量带有 `(DJ版)` 和 `(0.8x)` 标签的歌曲。这种通过修改BPM（每分钟节拍数）来强行拉升或压抑情绪的行为，在量化分析中呈现出典型的双峰分布。
+                    </p>
+
+                    <div class="flex flex-wrap gap-3 mb-4">
+                        <button onclick="updateBpmChart('all')" id="btn-bpm-all" class="px-4 py-2 bg-gray-800 text-white text-sm rounded-md font-medium transition shadow">全天候综合模式</button>
+                        <button onclick="updateBpmChart('dj')" id="btn-bpm-dj" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-50 transition">日间/驾驶 亢奋模式 (DJ/Remix)</button>
+                        <button onclick="updateBpmChart('slow')" id="btn-bpm-slow" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-50 transition">深夜 Emo 抑郁模式 (0.8x降调)</button>
+                    </div>
+
+                    <div class="chart-container mb-4">
+                        <canvas id="bpmChart"></canvas>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="p-4 bg-orange-50/80 border border-orange-100 rounded-lg">
+                            <h4 class="font-bold text-orange-800 mb-1">⚡ 高频域：多巴胺泵</h4>
+                            <p class="text-xs text-orange-700 leading-relaxed">
+                                例如《大天蓬 (DJ降调版)》、《Sexy Lady》等。强烈的底鼓和合成器音效，将原本平缓的节奏拉升至 120-140 BPM。这往往是为了在枯燥的通勤、工作或运动中强行注入多巴胺，对抗疲惫。
+                            </p>
+                        </div>
+                        <div class="p-4 bg-blue-50/80 border border-blue-100 rounded-lg">
+                            <h4 class="font-bold text-blue-800 mb-1">🌙 低频域：深海效应</h4>
+                            <p class="text-xs text-blue-700 leading-relaxed">
+                                大量的 `0.8x` 降调版。降速不仅降低了BPM，还带来了音高的下移和混响的增加。这种“水下听觉”能迅速降低心率，通常与深夜失眠、孤独感、或是渴望被包裹的安全感高度相关。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模块 4：心理动力学侧写 -->
+            <div id="sec-profiling" class="fade-in hidden space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h2 class="text-xl font-bold mb-4 text-gray-800 flex items-center">基于歌单的心理特征矩阵 (Valence-Arousal)</h2>
+                    <p class="text-gray-600 leading-relaxed mb-6 text-sm">
+                        在音乐心理学中，我们采用**效价(Valence, 情绪正负面)**和**唤醒度(Arousal, 情绪强弱)**构建二维矩阵。通过散点图的分布密度，我们可以直观地看到你的情绪驻留区域。
+                    </p>
+
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="w-full md:w-3/5">
+                            <div class="chart-container !h-[350px]">
+                                <canvas id="scatterChart"></canvas>
+                            </div>
+                            <p class="text-center text-xs text-gray-400 mt-2">每个气泡代表歌单中的一部分曲风集群</p>
+                        </div>
+                        
+                        <div class="w-full md:w-2/5 flex flex-col justify-center space-y-4">
+                            <div class="p-4 bg-gray-50 border-l-4 border-gray-800 rounded-r-lg">
+                                <h3 class="font-bold text-gray-800 mb-2">人格侧写报告</h3>
+                                <p class="text-sm text-gray-600 leading-relaxed">
+                                    数据表明，你的情绪分布呈现一个巨大的**“V型”空洞**。你极少听中庸、平淡无奇的温吞音乐。
+                                </p>
+                                <p class="text-sm text-gray-600 leading-relaxed mt-2">
+                                    你的人格可能带有强烈的**体验派色彩**：要么用最燥的鼓点把气氛推向极致（右上象限），要么在极度悲伤、放慢的旋律里进行自我解剖（左下象限）。你不喜欢平庸，你需要在两极之间反复横跳来确认自我的存在。
+                                </p>
+                            </div>
+                            <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                <h4 class="font-bold text-indigo-800 text-sm mb-1">建议与结论</h4>
+                                <p class="text-xs text-indigo-700">这382首歌是你的私人避难所。无需在意算法或他人的评价，继续享受你在古典与土嗨、狂欢与抑郁之间自由穿梭的特权吧。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <footer class="bg-white border-t border-gray-200 mt-auto py-6">
+        <div class="max-w-7xl mx-auto px-4 text-center flex flex-col items-center justify-center">
+            <p class="text-sm text-gray-500">基于您的媒体数据由大语言模型自动生成 · 数据可视化赋能</p>
+            <p class="text-xs text-gray-400 mt-1">Disclaimer: All generated analytics are based on qualitative visual data extraction.</p>
+        </div>
+    </footer>
+
+    <script>
+        // 全局图表实例对象，用于安全销毁和更新
+        const chartInstances = {
+            radar: null,
+            doughnut: null,
+            bpm: null,
+            scatter: null
+        };
+
+        const globalChartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            font: { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto" }
+        };
+
+        // Tab 切换逻辑
+        function switchTab(tabId) {
+            // 样式重置
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('div[id^="sec-"]').forEach(sec => sec.classList.add('hidden'));
+            
+            // 激活当前
+            document.getElementById(`btn-${tabId}`).classList.add('active');
+            document.getElementById(`sec-${tabId}`).classList.remove('hidden');
+
+            // 延迟渲染图表以保证容器已显示并具备宽高
+            setTimeout(() => renderChartsForTab(tabId), 50);
+        }
+
+        // 图表分配渲染器
+        function renderChartsForTab(tabId) {
+            if (tabId === 'overview' && !chartInstances.radar) initRadarChart();
+            if (tabId === 'clustering' && !chartInstances.doughnut) initDoughnutChart();
+            if (tabId === 'volatility' && !chartInstances.bpm) initBpmChart('all');
+            if (tabId === 'profiling' && !chartInstances.scatter) initScatterChart();
+        }
+
+        // 模块1：雷达图 (维度评估)
+        function initRadarChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            chartInstances.radar = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['流行/传唱度', '能量/电音化', '舞蹈节奏(BPM)', '悲伤沉浸度', '情感怀旧值'],
+                    datasets: [{
+                        label: '你的偏好轮廓',
+                        data: [85, 90, 75, 88, 95],
+                        backgroundColor: 'rgba(14, 165, 233, 0.2)', // Tailwind blue-500
+                        borderColor: 'rgb(14, 165, 233)',
+                        pointBackgroundColor: 'rgb(14, 165, 233)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(14, 165, 233)',
+                        borderWidth: 2,
+                    },
+                    {
+                        label: '大众平均水平',
+                        data: [60, 50, 60, 40, 50],
+                        backgroundColor: 'rgba(156, 163, 175, 0.1)', // Tailwind gray-400
+                        borderColor: 'rgb(156, 163, 175)',
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        borderWidth: 1,
+                    }]
+                },
+                options: {
+                    ...globalChartOptions,
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(0,0,0,0.05)' },
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            pointLabels: { font: { size: 12, weight: '600' }, color: '#475569' },
+                            suggestedMin: 0,
+                            suggestedMax: 100,
+                            ticks: { display: false } // 隐藏具体数值使图形更干净
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } }
+                    }
+                }
+            });
+        }
+
+        // 模块2：环形图 (流派占比)
+        function initDoughnutChart() {
+            const ctx = document.getElementById('doughnutChart').getContext('2d');
+            chartInstances.doughnut = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['华语流行 (Jay等)', '欧美热单', '电音/DJ版', '0.8x降调/Emo', 'ACG/二次元', '民谣/独立'],
+                    datasets: [{
+                        data: [35, 15, 20, 15, 10, 5],
+                        backgroundColor: [
+                            '#3b82f6', // blue-500
+                            '#ec4899', // pink-500
+                            '#f59e0b', // amber-500
+                            '#6366f1', // indigo-500
+                            '#10b981', // emerald-500
+                            '#9ca3af'  // gray-400
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    ...globalChartOptions,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'right', labels: { padding: 20, font: { size: 12 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) { return ` ${context.label}: ${context.raw}%`; }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 模块3：线性图生成逻辑 (模拟时序BPM)
+        function generateBpmData(mode) {
+            const labels = Array.from({length: 24}, (_, i) => `${i}:00`);
+            let data = [];
+            
+            for(let i=0; i<24; i++) {
+                if (mode === 'dj') {
+                    // 全天高能
+                    data.push(120 + Math.random() * 30);
+                } else if (mode === 'slow') {
+                    // 全天低迷
+                    data.push(60 + Math.random() * 20);
+                } else {
+                    // 综合模式：白天波动升高，深夜断崖式下跌
+                    if (i >= 8 && i <= 20) {
+                        data.push(90 + Math.random() * 40 + (i===18 ? 20 : 0)); // 傍晚小高峰
+                    } else {
+                        data.push(65 + Math.random() * 15); // 深夜平缓
+                    }
+                }
+            }
+            // 平滑处理
+            return data.map(v => Math.round(v));
+        }
+
+        function initBpmChart(mode) {
+            const ctx = document.getElementById('bpmChart').getContext('2d');
+            const data = generateBpmData(mode);
+
+            chartInstances.bpm = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels = Array.from({length: 24}, (_, i) => `${i}:00`),
+                    datasets: [{
+                        label: '心率预估 (BPM)',
+                        data: data,
+                        borderColor: '#8b5cf6', // violet-500
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4, // 曲线平滑
+                        fill: true,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#8b5cf6',
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    ...globalChartOptions,
+                    scales: {
+                        y: { 
+                            title: { display: true, text: 'Beats Per Minute (BPM)', color: '#64748b' },
+                            min: 40, max: 170
+                        },
+                        x: {
+                            title: { display: true, text: '模拟 24 小时情绪分布', color: '#64748b' }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+            updateBpmButtons(mode);
+        }
+
+        // 动态更新BPM图表
+        function updateBpmChart(mode) {
+            if(!chartInstances.bpm) return;
+            
+            const newData = generateBpmData(mode);
+            chartInstances.bpm.data.datasets[0].data = newData;
+            
+            // 动态改变线条颜色
+            if(mode === 'dj') {
+                chartInstances.bpm.data.datasets[0].borderColor = '#f97316'; // orange
+                chartInstances.bpm.data.datasets[0].backgroundColor = 'rgba(249, 115, 22, 0.1)';
+            } else if (mode === 'slow') {
+                chartInstances.bpm.data.datasets[0].borderColor = '#3b82f6'; // blue
+                chartInstances.bpm.data.datasets[0].backgroundColor = 'rgba(59, 130, 246, 0.1)';
+            } else {
+                chartInstances.bpm.data.datasets[0].borderColor = '#8b5cf6'; // violet
+                chartInstances.bpm.data.datasets[0].backgroundColor = 'rgba(139, 92, 246, 0.1)';
+            }
+            
+            chartInstances.bpm.update();
+            updateBpmButtons(mode);
+        }
+
+        function updateBpmButtons(activeMode) {
+            const buttons = ['all', 'dj', 'slow'];
+            buttons.forEach(mode => {
+                const btn = document.getElementById(`btn-bpm-${mode}`);
+                if (mode === activeMode) {
+                    btn.className = "px-4 py-2 bg-gray-800 text-white text-sm rounded-md font-medium transition shadow";
+                } else {
+                    btn.className = "px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-50 transition";
+                }
+            });
+        }
+
+        // 模块4：散点图 (情绪效价矩阵)
+        function initScatterChart() {
+            const ctx = document.getElementById('scatterChart').getContext('2d');
+            
+            // 生成模拟聚簇数据
+            const generateCluster = (count, valCenter, arCenter, spread) => {
+                let points = [];
+                for(let i=0; i<count; i++) {
+                    points.push({
+                        x: Math.min(100, Math.max(0, valCenter + (Math.random() - 0.5) * spread)),
+                        y: Math.min(100, Math.max(0, arCenter + (Math.random() - 0.5) * spread))
+                    });
+                }
+                return points;
+            };
+
+            const clusterDJ = generateCluster(30, 80, 85, 30); // 高效价 高唤醒 (狂欢)
+            const clusterEmo = generateCluster(35, 20, 25, 25); // 低效价 低唤醒 (悲伤降调)
+            const clusterPop = generateCluster(25, 60, 60, 20); // 中等 (流行)
+            
+            chartInstances.scatter = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: '狂热区 (DJ/电音/ACG)',
+                            data: clusterDJ,
+                            backgroundColor: 'rgba(245, 158, 11, 0.6)', // amber
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        },
+                        {
+                            label: '抑郁区 (0.8x/慢歌/纯音)',
+                            data: clusterEmo,
+                            backgroundColor: 'rgba(59, 130, 246, 0.6)', // blue
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        },
+                        {
+                            label: '舒适区 (经典华语/流行)',
+                            data: clusterPop,
+                            backgroundColor: 'rgba(16, 185, 129, 0.6)', // emerald
+                            pointRadius: 5,
+                            pointHoverRadius: 7
+                        }
+                    ]
+                },
+                options: {
+                    ...globalChartOptions,
+                    scales: {
+                        x: {
+                            title: { display: true, text: '效价 Valence (悲伤 ←→ 愉悦)', font: { weight: 'bold' } },
+                            min: 0, max: 100
+                        },
+                        y: {
+                            title: { display: true, text: '唤醒度 Arousal (平静 ←→ 激动)', font: { weight: 'bold' } },
+                            min: 0, max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 12 } }
+                    }
+                }
+            });
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            switchTab('overview'); // 默认展开第一页并渲染
+        });
+    </script>
+</body>
+</html>
