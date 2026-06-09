@@ -32,20 +32,57 @@
                 min-height: 250px;
             }
         }
+        
+        /* 重新设计的强视觉引导按钮 */
         .tab-btn {
-            transition: all 0.2s ease;
-            border-left: 4px solid transparent;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(145deg, #ffffff, #f8fafc);
+            color: #475569;
+            position: relative;
+            border: 2px solid #e2e8f0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            overflow: hidden;
+            z-index: 1;
         }
+        
+        /* 未选中状态的微光/呼吸引导，诱导点击 */
+        .tab-btn:not(.active)::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: inherit;
+            box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4);
+            animation: pulse-ring 2s infinite;
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .tab-btn:not(.active):hover::before {
+            opacity: 1;
+        }
+
         .tab-btn.active {
-            background-color: #e0f2fe; /* Light Blue */
-            color: #0369a1; /* Dark Blue */
-            border-left-color: #0284c7;
-            font-weight: 600;
+            background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
+            color: #ffffff !important;
+            border-color: transparent;
+            box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.5), inset 0 -3px 0 rgba(0,0,0,0.1);
+            transform: translateY(-4px) scale(1.02);
         }
+        
         .tab-btn:hover:not(.active) {
-            background-color: #f1f5f9;
-            border-left-color: #cbd5e1;
+            border-color: #3b82f6;
+            background: #f0f9ff;
+            color: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(59, 130, 246, 0.15);
         }
+        
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(14, 165, 233, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+        }
+
         .fade-in {
             animation: fadeIn 0.5s ease-out forwards;
         }
@@ -90,26 +127,34 @@
 
     <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex flex-col md:flex-row gap-8 relative">
         
-        <!-- 左侧导航栏 (移动端横向滚动，PC端固定侧边) -->
-        <aside class="w-full md:w-64 flex-shrink-0 z-10">
-            <nav class="flex md:flex-col overflow-x-auto md:overflow-visible space-x-2 md:space-x-0 md:space-y-2 pb-2 md:pb-0 md:sticky md:top-28 snap-x">
-                <button onclick="switchTab('overview')" id="btn-overview" class="snap-start whitespace-nowrap tab-btn active text-left px-5 py-3 rounded-lg border border-gray-200 text-gray-600 flex items-center shadow-sm">
-                    <span class="mr-3 text-lg">📑</span> 数据池概览
+        <!-- 左侧导航栏 (移动端：2x2大模块网格，PC端：垂直固定栏) -->
+        <aside class="w-full md:w-72 flex-shrink-0 z-10 relative">
+            <div class="mb-3 md:hidden flex items-center justify-center space-x-2 text-sm font-bold text-blue-600 bg-blue-50 py-2 rounded-lg border border-blue-100 shadow-inner">
+                <span class="animate-bounce">👇</span> 请点击下方模块进行深度解析 <span class="animate-bounce">👇</span>
+            </div>
+            
+            <nav class="grid grid-cols-2 gap-3 md:flex md:flex-col md:gap-0 md:space-y-4 md:sticky md:top-28 p-1">
+                <button onclick="switchTab('overview')" id="btn-overview" class="tab-btn active group text-center md:text-left px-4 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-center md:justify-start">
+                    <span class="text-3xl md:text-2xl mb-2 md:mb-0 md:mr-4 transition-transform group-hover:scale-110 group-[.active]:scale-110">📑</span> 
+                    <span class="font-bold text-[15px] md:text-base leading-tight">数据池概览</span>
                 </button>
-                <button onclick="switchTab('clustering')" id="btn-clustering" class="snap-start whitespace-nowrap tab-btn text-left px-5 py-3 rounded-lg border border-gray-200 text-gray-600 flex items-center shadow-sm">
-                    <span class="mr-3 text-lg">🕸️</span> 流派聚类特征
+                <button onclick="switchTab('clustering')" id="btn-clustering" class="tab-btn group text-center md:text-left px-4 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-center md:justify-start">
+                    <span class="text-3xl md:text-2xl mb-2 md:mb-0 md:mr-4 transition-transform group-hover:scale-110 group-[.active]:scale-110">🕸️</span> 
+                    <span class="font-bold text-[15px] md:text-base leading-tight">流派聚类特征</span>
                 </button>
-                <button onclick="switchTab('volatility')" id="btn-volatility" class="snap-start whitespace-nowrap tab-btn text-left px-5 py-3 rounded-lg border border-gray-200 text-gray-600 flex items-center shadow-sm">
-                    <span class="mr-3 text-lg">📈</span> 极端情绪波动(BPM)
+                <button onclick="switchTab('volatility')" id="btn-volatility" class="tab-btn group text-center md:text-left px-4 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-center md:justify-start">
+                    <span class="text-3xl md:text-2xl mb-2 md:mb-0 md:mr-4 transition-transform group-hover:scale-110 group-[.active]:scale-110">📈</span> 
+                    <span class="font-bold text-[15px] md:text-base leading-tight">极端情绪波动</span>
                 </button>
-                <button onclick="switchTab('profiling')" id="btn-profiling" class="snap-start whitespace-nowrap tab-btn text-left px-5 py-3 rounded-lg border border-gray-200 text-gray-600 flex items-center shadow-sm">
-                    <span class="mr-3 text-lg">🧠</span> 心理动力学侧写
+                <button onclick="switchTab('profiling')" id="btn-profiling" class="tab-btn group text-center md:text-left px-4 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-center md:justify-start">
+                    <span class="text-3xl md:text-2xl mb-2 md:mb-0 md:mr-4 transition-transform group-hover:scale-110 group-[.active]:scale-110">🧠</span> 
+                    <span class="font-bold text-[15px] md:text-base leading-tight">心理动力侧写</span>
                 </button>
             </nav>
         </aside>
 
         <!-- 右侧主内容区 -->
-        <section class="flex-grow min-w-0" id="content-area">
+        <section class="flex-grow min-w-0 bg-white md:bg-transparent rounded-2xl md:rounded-none shadow-sm md:shadow-none p-1 md:p-0" id="content-area">
             
             <!-- 模块 1：数据池概览 -->
             <div id="sec-overview" class="fade-in block space-y-6">
